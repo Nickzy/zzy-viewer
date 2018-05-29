@@ -1,6 +1,5 @@
 <template>
   <div id="app">
-    <viewer></viewer>
   </div>
 </template>
 

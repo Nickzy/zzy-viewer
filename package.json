@@ -1,5 +1,5 @@
 {
-  "name": "vue-viewer",
+  "name": "zzy-viewer",
   "description": "A Vue.js project",
   "version": "1.0.0",
   "author": "zzy",
@@ -9,14 +9,14 @@
     "dev": "cross-env NODE_ENV=development webpack-dev-server --open --hot",
     "build": "cross-env NODE_ENV=production webpack --progress --hide-modules"
   },
-  "main": "dist/vue-slider.js",
+  "main": "dist/zzy-viewer.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nickzy/zzy-viewer.git"
   },
   "keywords": [
     "vue",
-    "vue-viewer"
+    "zzy-viewer"
   ],
   "dependencies": {
     "screenfull": "^3.3.2",

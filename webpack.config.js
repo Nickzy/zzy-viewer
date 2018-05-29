@@ -7,8 +7,8 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, './dist'),
     publicPath: '/dist/',
-    filename: 'vue-viewer.js',
-    library: 'vueViewer',
+    filename: 'zzy-viewer.js',
+    library: 'zzyViewer',
     libraryTarget: 'umd',
     umdNamedDefine: true
   },
