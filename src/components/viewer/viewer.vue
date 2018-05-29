@@ -1,0 +1,634 @@
+<template>
+  <div class="wrap__mask" v-if="isShowSelf" :style="isFullscreen? '' : 'padding: 10px 50px'">
+    <div v-if="isFullscreen" style="width: 100%; height: 100%">
+      <img 
+        :draggable="false"
+        style="width: 100%; height: 100%"
+        :src="src"
+        alt=""
+      />
+    </div>
+    <div class="content_img" v-if="!isFullscreen">
+      <div class="closeBtn" @click="handleClose"></div>
+      <div v-if="percentIsShow" class="current_img_percent">{{`${percent}%`}}</div>
+      <div class="self_img" :style="wrapImgStyle" ref="wrapMoveImg">
+        <img 
+          ref="canMoveImg"
+          @mousedown="mousedown"
+          :draggable="false"
+          :style="style"
+          :src="src"
+          alt=""
+        />
+        <a download @click="downloadIamge('down', 'aaa')" href="javascript:;">点击下载</a>
+        <div class="footer_operation">
+          <ul class="button_operation" @click="handleClick">
+            <li data-action="zoom-in"></li>
+            <li data-action="zoom-out"></li>
+            <li data-action="one-to-one"></li>
+            <li data-action="reset"></li>
+            <li data-action="prev"></li>
+            <li data-action="play"></li>
+            <li data-action="next"></li>
+            <li data-action="rotate-left"></li>
+            <li data-action="rotate-right"></li>
+            <li data-action="flip-horizontal"></li>
+            <li data-action="flip-vertical"></li>
+          </ul>
+          <footer-img-list @getImgData="getImgData" :listArr="list" :isFull="false" :changeIndex="currentIndex"></footer-img-list>
+        </div>
+      </div>
+      <siderbar-detail v-if="isHasSiderBar" :contentWidth="contentWidth" :position="position" @close="close">
+        <template slot="get_siderbar">
+          <slot name="siderbar"></slot>
+        </template>
+      </siderbar-detail>
+    </div>
+  </div>
+</template>
+<script>
+import footerImgList from './footerImgList'
+import siderbarDetail from './siderbarDetail'
+import {listener} from './util'
+import screenfull from 'screenfull'
+export default {
+  props: {
+    isShow: false,
+    position: {
+      default: ''
+    },
+    list: {
+      default: []
+    },
+    index: {
+      default: null
+    },
+    isHasSiderBar: {
+      default: false
+    },
+    bottom: {
+      default: 10,
+      type: Number
+    },
+    top: {
+      default: 30,
+      type: Number
+    },
+    fatherElement: {
+      default: null
+    }
+  },
+  data () {
+    return {
+      isShowSelf: false,
+      // 图片属性
+      width: null,
+      defailtMinWidth: 20,
+      defailtMaxWidth: 800,
+      changeHeiht: 0,
+      moveTop: 0,
+      moveLeft: 0,
+      startTop: 0,
+      startLeft: 0,
+      currentIndex: 0,
+      percent: 0,
+      percentIsShow: false,
+      initData: null,
+      rotate: 0,
+      toggleRotateX: false,
+      toggleRotateY: false,
+      transforms: [],
+      isFullscreen: false,
+      isOneByOne: false,
+      playOfImg: null,
+      src: '',
+      numSetimeout: 0
+    }
+  },
+  components: {footerImgList, siderbarDetail},
+  computed: {
+    style () {
+      if (this.width) {
+        return {
+          width: `${this.width}px`,
+          top: `${this.moveTop}px`,
+          left: `${this.moveLeft}px`
+        }
+      } else {
+        return {
+          width: 0,
+          top: '50%',
+          left: '50%'
+        }
+      }
+    },
+    contentWidth () {
+      let element = document.querySelector('.content_img')
+      return element && element.clientWidth
+    },
+    wrapImgStyle () {
+      if (!this.isHasSiderBar) {
+        return {
+          width: '100%'
+        }
+      }
+      if (this.position === 'left') {
+        return {
+          right: 0
+        }
+      }
+      return {
+        left: 0
+      }
+    }
+  },
+  mounted () {
+    let _this = this
+    this.$nextTick(function () {
+      // 拖动图片初始属性
+      document.body.addEventListener('mousewheel', _this.mouseSheel)
+      window.addEventListener('resize', function () {
+        _this.isFullscreen = screenfull.isFullscreen
+        if (!screenfull.isFullscreen && _this.$refs.wrapMoveImg) {
+          _this.initData.wrapWidth = _this.$refs.wrapMoveImg.clientWidth
+          _this.initData.wrapHeight = _this.$refs.wrapMoveImg.clientHeight
+          _this.init(_this, _this.src)
+        }
+      })
+    })
+  },
+  methods: {
+    init (_this, src, cb) {
+      return new Promise((resolve, reject) => {
+        let imgObj = new Image()
+        imgObj.src = src
+        // 底部操作栏高度
+        let footerHeight = document.querySelector('.footer_operation').clientHeight
+        // 图片可移动范围
+        let wrapWidth = _this.$refs.wrapMoveImg.clientWidth
+        let wrapHeight = _this.$refs.wrapMoveImg.clientHeight
+        // 拖动图片初始属性
+        _this.imgIsComplet(imgObj, (img) => {
+          let imgRealWidth = imgObj.width
+          let imgRealHeight = imgObj.height
+          let lastW = ''
+          let lastH = ''
+          let w = 1
+          let resultH = wrapHeight - (_this.top + footerHeight)
+          // 计算图片大小
+          console.log('imgRealWidth', imgRealWidth)
+          console.log('imgRealHeight', imgRealHeight)
+          if (imgRealWidth > wrapWidth) {
+            console.log('big')
+            lastW = wrapWidth * 0.8
+            let curImgHeight = imgRealHeight * lastW / imgRealWidth
+            if (curImgHeight > resultH) {
+              curImgHeight = resultH - _this.bottom
+              w = curImgHeight / imgRealHeight
+              console.log(curImgHeight / imgRealHeight)
+              lastW = w * imgRealWidth
+              lastH = curImgHeight
+            } else {
+              w = curImgHeight / imgRealHeight
+            }
+          } else {
+            console.log('small')
+            let curImgHeight = imgRealHeight
+            if (curImgHeight > resultH) {
+              curImgHeight = resultH - _this.bottom
+              w = curImgHeight / imgRealHeight
+              lastW = w * imgRealWidth
+              lastH = curImgHeight
+            } else {
+              lastW = imgRealWidth
+              lastH = curImgHeight
+            }
+          }
+          console.log('百分比init', w)
+          let top = 30
+          let left = (wrapWidth - lastW) / 2
+          // 设置图片初始属性
+          _this.width = lastW
+          _this.changeHeiht = lastH
+          _this.moveTop = top
+          _this.moveLeft = left
+          _this.defailtMinWidth = imgRealWidth * 0.01
+          _this.defailtMaxWidth = imgRealWidth * 10
+          _this.percent = Math.floor(w * 100)
+          // 存储初始属性
+          _this.src = src
+          let data = {wrapWidth, wrapHeight, imgRealWidth, lastW, imgRealHeight, lastH, rotate: 0, w, top, left}
+          _this.initData = data
+          resolve()
+        })
+      })
+    },
+    reset () {
+      let {lastW, lastH, top, left} = this.initData
+      this.width = lastW
+      this.changeHeiht = lastH
+      this.moveTop = top
+      this.moveLeft = left
+      this.transforms = []
+      this.rotate = 0
+      this.toggleRotateX = false
+      this.toggleRotateY = false
+      this.isOneByOne = false
+    },
+    percentStatus (num) {
+      console.log(num)
+      let timer
+      clearInterval(timer)
+      timer = setInterval(() => {
+        if (this.percentIsShow) {
+          this.percentIsShow = false
+          clearInterval(timer)
+        }
+      }, num * 250)
+    },
+    getSelfWidth (minWidth, maxWidth, delta, realWidth) {
+      return Math.max(minWidth, Math.min(maxWidth, realWidth + (this.defailtMinWidth * delta)))
+    },
+    // 拖动事件
+    mousedown (e) {
+      this.startLeft = e.clientX - this.$refs.canMoveImg.offsetLeft
+      this.startTop = e.clientY - this.$refs.canMoveImg.offsetTop
+      this.mousemove(this.$refs.wrapMoveImg, this._mouseMove)
+      this.mouseup(this.$refs.wrapMoveImg, this._mouseMove)
+    },
+    mouseup (element, handle) {
+      listener.addListener(document, 'mouseup', function () {
+        element && listener.removeListener(element, 'mousemove', handle)
+      })
+    },
+    _mouseMove (e) {
+      // let {wrapWidth, wrapHeight} = this.initData
+      let x = e.clientX - this.startLeft
+      let y = e.clientY - this.startTop
+      // let maxX = wrapWidth - this.width
+      // let maxY = wrapHeight - this.changeHeiht
+      // let resultX = x
+      // if (x > 0) {
+      //   resultX = x
+      // }
+      // if (x < 0) {
+      //   resultX = 0
+      // }
+      // if (y > 0) {
+      //   resultY = y
+      // }
+      // if (y < 0) {
+      //   resultY = 0
+      // }
+      // if (x >= maxX && x > 0) {
+      //   resultX = maxX
+      // }
+      // if (y >= maxY && y > 0) {
+      //   resultY = maxY
+      // }
+      this.moveTop = y
+      this.moveLeft = x
+    },
+    mousemove (element, handle) {
+      listener.addListener(element, 'mousemove', handle)
+    },
+    mouseSheel (event) {
+      if (!screenfull.isFullscreen && this.isShowSelf) {
+        let e = event
+        let delta = Math.max(-1, Math.min(1, (e.wheelDelta || -e.detail)))
+        let width = this.getSelfWidth(this.defailtMinWidth, this.defailtMaxWidth, delta, this.width)
+        this.width = width
+        this.percent = Math.floor((width / this.initData.imgRealWidth) * 100)
+        if (this.percentIsShow) { return }
+        this.percentIsShow = true
+        let timer
+        clearTimeout(timer)
+        timer = setTimeout(() => {
+          this.numSetimeout += 1
+          this.percentStatus(this.numSetimeout)
+        }, 250)
+        // this.percentIsShow = true
+      }
+      // return false
+    },
+    addListener () {
+      document.body.addEventListener('mousewheel', this.mouseSheel)
+    },
+    close () {
+      this.isShowSelf = false
+    },
+    handleClose () {
+      this.close()
+    },
+    handleClick (e) {
+      console.log(e.target.dataset.action)
+      let btnText = e.target.dataset.action
+      switch (btnText) {
+        case 'reset':
+          this.reset()
+          break
+        case 'zoom-in':
+          this.width += 30
+          break
+        case 'zoom-out':
+          this.width -= 30
+          break
+        case 'rotate-left':
+          this.rotate--
+          this.filterTransForms('rotate')
+          this.transforms.push(`rotate(${this.rotate * 90}deg)`)
+          break
+        case 'rotate-right':
+          this.rotate++
+          this.filterTransForms('rotate')
+          this.transforms.push(`rotate(${this.rotate * 90}deg)`)
+          break
+        case 'flip-horizontal':
+          this.toggleRotateX = !this.toggleRotateX
+          this.filterTransForms('scaleX')
+          this.transforms.push(`scaleX(${this.toggleRotateX ? -1 : 1})`)
+          break
+        case 'flip-vertical':
+          this.toggleRotateY = !this.toggleRotateY
+          this.filterTransForms('scaleY')
+          this.transforms.push(`scaleY(${this.toggleRotateY ? -1 : 1})`)
+          break
+        case 'prev':
+          if (this.currentIndex > 0) {
+            this.width = 0
+            this.currentIndex--
+          }
+          break
+        case 'next':
+          if (this.currentIndex < this.list.length - 1) {
+            this.width = 0
+            this.currentIndex++
+          }
+          break
+        case 'play':
+          screenfull.request()
+          break
+        case 'one-to-one':
+          this.isOneByOne = !this.isOneByOne
+          if (this.isOneByOne) {
+            let {imgRealWidth, imgRealHeight, wrapWidth, wrapHeight, w} = this.initData
+            if (w !== 1) {
+              this.width = imgRealWidth
+              this.changeHeiht = imgRealHeight
+              this.moveTop = (wrapHeight - imgRealHeight) / 2
+              this.moveLeft = (wrapWidth - imgRealWidth) / 2
+            }
+          } else {
+            this.reset()
+          }
+          break
+      }
+    },
+    filterTransForms (type) {
+      if (this.transforms.length) {
+        this.transforms = this.transforms.filter(item => {
+          return item.indexOf(type) === -1
+        })
+      }
+    },
+    imgIsComplet (img, callback) {
+      console.log('imgIsComplet', img)
+      let timer = setInterval(() => {
+        if (img.complete) {
+          callback(img)
+          clearInterval(timer)
+        }
+      }, 100)
+    },
+    show (event) {
+      console.log(this.list)
+      let e = event
+      let src = e.target.src
+      console.log(src)
+      if (!screenfull.isFullscreen) {
+        this.list.forEach((item, index) => {
+          if (src.indexOf(item.uri) !== -1) {
+            this.isShowSelf = true
+            this.$nextTick(() => {
+              this.init(this, this.list[index].uri)
+              this.currentIndex = index
+              console.log('index', index)
+            })
+          }
+        })
+      }
+    },
+    getImgData (item, index, isChange) {
+      let _this = this
+      this.width = null
+      this.changeHeiht = 0
+      this.isOneByOne = false
+      // this.src = item
+      let Img = new Image()
+      Img.src = item.uri
+      this.imgIsComplet(this.$refs.canMoveImg, (img) => {
+        _this.init(_this, item.uri)
+      })
+      if (!isChange) {
+        this.currentIndex = index
+      }
+    },
+    fullImgClick () {
+      screenfull.exit()
+    },
+    imgPlay () {
+      let _this = this
+      this.playOfImg = setInterval(() => {
+        if (_this.currentIndex < _this.list.length - 1) {
+          _this.currentIndex++
+        } else {
+          _this.currentIndex = 0
+        }
+        console.log(_this.currentIndex)
+        console.log(_this.list)
+        if (_this.list.length) {
+          _this.src = _this.list[_this.currentIndex].uri
+        }
+      }, 2000)
+      window.addEventListener('click', this.fullImgClick)
+    },
+    imgStop () {
+      let _this = this
+      this.playOfImg && clearInterval(this.playOfImg)
+      window.removeEventListener('click', this.fullImgClick, false)
+      this.$nextTick(function () {
+        if (_this.list.length) {
+          _this.imgIsComplet(_this.$refs.canMoveImg, (img) => {
+            _this.init(_this, _this.src)
+          })
+        }
+      })
+    },
+    downloadIamge (selector, name) {
+      // 通过选择器获取img元素
+      var img = this.$refs.canMoveImg
+      // 将图片的src属性作为URL地址
+      var url = img.src
+      var a = document.createElement('a')
+      var event = new MouseEvent('click')
+      a.download = name || '下载图片名称'
+      a.href = url
+      a.dispatchEvent(event)
+    }
+  },
+  beforeDestroy () {
+    console.log(11111111)
+  },
+  destroyed () {
+    console.log(222222)
+    listener.removeListener(document.body, 'mousewheel', this.mouseSheel)
+    // listener.removeListener(document.body, 'mousewheel', _this.mouseSheel)
+  },
+  watch: {
+    transforms (newValue, value) {
+      if (newValue.length && this.$refs.canMoveImg) {
+        this.$refs.canMoveImg.style.transform = newValue.join(' ')
+      }
+      if (!newValue.length && this.$refs.canMoveImg) {
+        this.$refs.canMoveImg.style.transform = newValue.join(' ')
+      }
+    },
+    isFullscreen (newValue, value) {
+      if (newValue) {
+        this.imgPlay()
+      } else {
+        this.imgStop()
+      }
+    },
+    index (newValue, value) {
+      if (typeof newValue === 'number') {
+        this.currentIndex = newValue
+      }
+    },
+    fatherElement (newValue, value) {
+      console.log(newValue.querySelectorAll('img'))
+      newValue && newValue.addEventListener('click', this.show)
+    }
+  }
+}
+</script>
+<style >
+.wrap__mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0,0,0,.5);
+  z-index: 10000000;
+  user-select: none;
+}
+.content_img {
+  position: relative;
+  /* overflow: hidden; */
+  display: flex;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,.3);
+}
+.self_img img {
+  display: block;
+  cursor: pointer;
+  position: absolute;
+  width: auto;
+  height: auto;
+}
+.current_img_percent {
+  position: absolute;
+  color: #ffffff;
+  top: 40%;
+  left: 34%;
+  font-size: 12px;
+  background: rgb(0,0,0);
+  text-align: center;
+  line-height: 20px;
+  border-radius: 8px;
+  padding: 0 10px;
+  z-index: 100;
+}
+.self_img {
+  position: absolute;
+  width: 72%;
+  height: 100%;
+  background: rgba(0,0,0,.2);
+  overflow: hidden;
+  transition: all 2s;
+}
+.footer_operation {
+  position: absolute;
+  width: 100%;
+  bottom: 0;
+}
+.button_operation {
+  width: 270px;
+  margin: 0 auto 5px;
+  display: flex;
+  justify-content: flex-start;
+}
+.button_operation li {
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  margin: 2px;
+  background-color: #000000;
+  opacity: 0.5;
+  border-radius: 50%;
+  background-image: url('./images/icons.png');
+  background-repeat: no-repeat;
+}
+.button_operation li:hover {
+  opacity: 0.8;
+}
+.button_operation li:nth-child(1) {
+  background-position: 0 0;
+}
+.button_operation li:nth-child(2) {
+  background-position: -20px 0;
+}
+.button_operation li:nth-child(3) {
+  background-position: -40px 0;
+}
+.button_operation li:nth-child(4) {
+  background-position: -60px 0;
+}
+.button_operation li:nth-child(5) {
+  background-position: -80px 0;
+}
+.button_operation li:nth-child(6) {
+  background-position: -100px 0;
+}
+.button_operation li:nth-child(7) {
+  background-position: -120px 0;
+}
+.button_operation li:nth-child(8) {
+  background-position: -140px 0;
+}
+.button_operation li:nth-child(9) {
+  background-position: -160px 0;
+}
+.button_operation li:nth-child(10) {
+  background-position: -180px 0;
+}
+.button_operation li:nth-child(11) {
+  background-position: -200px 0;
+}
+.closeBtn {
+  background: rgb(126, 122, 122);
+  background-image: url('./images/icons.png');
+  background-repeat: no-repeat;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-position: -260px 0;
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  border: 2px solid #ffffff;
+  z-index: 2;
+}
+</style>
