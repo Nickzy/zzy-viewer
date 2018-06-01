@@ -1,12 +1,11 @@
-import viewer from '../components/viewer/viewer.vue'
-const comment = {
-  install: function(Vue) {
-    Vue.component(viewer.name, viewer)
+import viewerComponent from '../components/viewer/viewer.vue'
+const viewer = {
+  install: function (Vue) {
+    if (typeof window !== 'undefined' && window.Vue) {
+      Vue = window.Vue
+    }
+    Vue.component(viewerComponent.name, viewerComponent)
   }
 }
-// global 情况下 自动安装
-if (typeof window !== 'undefined' && window.Vue) { 
-    window.Vue.use(comment) 
-}
 // 导出模块
-export default comment
+export default viewer

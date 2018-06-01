@@ -26,8 +26,8 @@ export default {
   computed: {
     style () {
       return {
-        width: `${this.listArr.length * 50}px`,
-        maxWidth: '500px'
+        width: `${this.listArr.length * 50}px`
+        // maxWidth: '500px'
       }
     }
   },

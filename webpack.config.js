@@ -6,7 +6,7 @@ module.exports = {
   entry: './src/lib/index.js',
   output: {
     path: path.resolve(__dirname, './dist'),
-    publicPath: '/dist/',
+    publicPath: './',
     filename: 'zzy-viewer.js',
     library: 'zzyViewer',
     libraryTarget: 'umd',
@@ -37,9 +37,9 @@ module.exports = {
       },
       {
         test: /\.(png|jpg|gif|svg)$/,
-        loader: 'file-loader',
+        loader: 'url-loader',
         options: {
-          name: '[name].[ext]?[hash]'
+          name: 'images/[name].[ext]'
         }
       }
     ]
@@ -60,7 +60,6 @@ module.exports = {
   },
   devtool: '#eval-source-map'
 }
-
 if (process.env.NODE_ENV === 'production') {
   module.exports.devtool = '#source-map'
   // http://vue-loader.vuejs.org/en/workflow/production.html

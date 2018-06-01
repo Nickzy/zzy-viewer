@@ -10,7 +10,7 @@
     </div>
     <div class="content_img" v-if="!isFullscreen">
       <div class="closeBtn" @click="handleClose"></div>
-      <div v-if="percentIsShow" class="current_img_percent">{{`${percent}%`}}</div>
+      <div :style="percentStyle" :class="transformStatus ? 'self_img_transition current_img_percent' : 'current_img_percent'">{{`${percent}%`}}</div>
       <div class="self_img" :style="wrapImgStyle" ref="wrapMoveImg">
         <img 
           ref="canMoveImg"
@@ -52,8 +52,8 @@ import siderbarDetail from './siderbarDetail'
 import {listener} from './util'
 import screenfull from 'screenfull'
 export default {
+  name: 'viewer',
   props: {
-    isShow: false,
     position: {
       default: ''
     },
@@ -88,6 +88,8 @@ export default {
       changeHeiht: 0,
       moveTop: 0,
       moveLeft: 0,
+      beforeTop: 0,
+      beforeLeft: 0,
       startTop: 0,
       startLeft: 0,
       currentIndex: 0,
@@ -98,6 +100,7 @@ export default {
       toggleRotateX: false,
       toggleRotateY: false,
       transforms: [],
+      transformStatus: false,
       isFullscreen: false,
       isOneByOne: false,
       playOfImg: null,
@@ -140,6 +143,11 @@ export default {
       return {
         left: 0
       }
+    },
+    percentStyle () {
+      return {
+        display: this.percentIsShow ? 'block' : 'none'
+      }
     }
   },
   mounted () {
@@ -176,23 +184,18 @@ export default {
           let w = 1
           let resultH = wrapHeight - (_this.top + footerHeight)
           // 计算图片大小
-          console.log('imgRealWidth', imgRealWidth)
-          console.log('imgRealHeight', imgRealHeight)
           if (imgRealWidth > wrapWidth) {
-            console.log('big')
             lastW = wrapWidth * 0.8
             let curImgHeight = imgRealHeight * lastW / imgRealWidth
             if (curImgHeight > resultH) {
               curImgHeight = resultH - _this.bottom
               w = curImgHeight / imgRealHeight
-              console.log(curImgHeight / imgRealHeight)
               lastW = w * imgRealWidth
               lastH = curImgHeight
             } else {
               w = curImgHeight / imgRealHeight
             }
           } else {
-            console.log('small')
             let curImgHeight = imgRealHeight
             if (curImgHeight > resultH) {
               curImgHeight = resultH - _this.bottom
@@ -204,7 +207,6 @@ export default {
               lastH = curImgHeight
             }
           }
-          console.log('百分比init', w)
           let top = 30
           let left = (wrapWidth - lastW) / 2
           // 设置图片初始属性
@@ -235,8 +237,17 @@ export default {
       this.toggleRotateY = false
       this.isOneByOne = false
     },
+    percentChange () {
+      this.percentIsShow = true
+      this.transition()
+      let timer
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        this.numSetimeout += 1
+        this.percentStatus(this.numSetimeout)
+      }, 250)
+    },
     percentStatus (num) {
-      console.log(num)
       let timer
       clearInterval(timer)
       timer = setInterval(() => {
@@ -288,6 +299,8 @@ export default {
       // }
       this.moveTop = y
       this.moveLeft = x
+      this.beforeTop = y
+      this.beforeLeft = x
     },
     mousemove (element, handle) {
       listener.addListener(element, 'mousemove', handle)
@@ -300,16 +313,17 @@ export default {
         this.width = width
         this.percent = Math.floor((width / this.initData.imgRealWidth) * 100)
         if (this.percentIsShow) { return }
-        this.percentIsShow = true
-        let timer
-        clearTimeout(timer)
-        timer = setTimeout(() => {
-          this.numSetimeout += 1
-          this.percentStatus(this.numSetimeout)
-        }, 250)
+        this.percentChange()
+        this.transition()
         // this.percentIsShow = true
       }
       // return false
+    },
+    transition () {
+      this.transformStatus = true
+      setTimeout(() => {
+        this.transformStatus = false
+      }, 3000)
     },
     addListener () {
       document.body.addEventListener('mousewheel', this.mouseSheel)
@@ -321,17 +335,20 @@ export default {
       this.close()
     },
     handleClick (e) {
-      console.log(e.target.dataset.action)
       let btnText = e.target.dataset.action
       switch (btnText) {
         case 'reset':
           this.reset()
           break
         case 'zoom-in':
-          this.width += 30
+          this.width += this.defailtMinWidth
+          this.percent = Math.floor((this.width / this.initData.imgRealWidth) * 100)
+          this.percentChange()
           break
         case 'zoom-out':
-          this.width -= 30
+          this.width -= this.defailtMinWidth
+          this.percent = Math.floor((this.width / this.initData.imgRealWidth) * 100)
+          this.percentChange()
           break
         case 'rotate-left':
           this.rotate--
@@ -370,17 +387,23 @@ export default {
           break
         case 'one-to-one':
           this.isOneByOne = !this.isOneByOne
+          let {imgRealWidth, imgRealHeight, wrapWidth, wrapHeight, lastW, lastH} = this.initData
           if (this.isOneByOne) {
-            let {imgRealWidth, imgRealHeight, wrapWidth, wrapHeight, w} = this.initData
-            if (w !== 1) {
+            if (this.percent !== 100) {
               this.width = imgRealWidth
               this.changeHeiht = imgRealHeight
               this.moveTop = (wrapHeight - imgRealHeight) / 2
               this.moveLeft = (wrapWidth - imgRealWidth) / 2
+              this.percent = 100
             }
           } else {
-            this.reset()
+            this.width = lastW
+            this.changeHeiht = lastH
+            this.moveTop = this.beforeTop
+            this.moveLeft = this.beforeLeft
+            this.percent = Math.floor((this.width / this.initData.imgRealWidth) * 100)
           }
+          this.percentChange()
           break
       }
     },
@@ -392,7 +415,6 @@ export default {
       }
     },
     imgIsComplet (img, callback) {
-      console.log('imgIsComplet', img)
       let timer = setInterval(() => {
         if (img.complete) {
           callback(img)
@@ -401,10 +423,8 @@ export default {
       }, 100)
     },
     show (event) {
-      console.log(this.list)
       let e = event
       let src = e.target.src
-      console.log(src)
       if (!screenfull.isFullscreen) {
         this.list.forEach((item, index) => {
           if (src.indexOf(item.uri) !== -1) {
@@ -412,7 +432,6 @@ export default {
             this.$nextTick(() => {
               this.init(this, this.list[index].uri)
               this.currentIndex = index
-              console.log('index', index)
             })
           }
         })
@@ -444,8 +463,6 @@ export default {
         } else {
           _this.currentIndex = 0
         }
-        console.log(_this.currentIndex)
-        console.log(_this.list)
         if (_this.list.length) {
           _this.src = _this.list[_this.currentIndex].uri
         }
@@ -477,10 +494,9 @@ export default {
     }
   },
   beforeDestroy () {
-    console.log(11111111)
   },
   destroyed () {
-    console.log(222222)
+    // 组建销毁移除监听事件
     listener.removeListener(document.body, 'mousewheel', this.mouseSheel)
     // listener.removeListener(document.body, 'mousewheel', _this.mouseSheel)
   },
@@ -506,7 +522,6 @@ export default {
       }
     },
     fatherElement (newValue, value) {
-      console.log(newValue.querySelectorAll('img'))
       newValue && newValue.addEventListener('click', this.show)
     }
   }
@@ -522,6 +537,9 @@ export default {
   background-color: rgba(0,0,0,.5);
   z-index: 10000000;
   user-select: none;
+}
+.self_img_transition {
+  transition: all 0.3
 }
 .content_img {
   position: relative;
