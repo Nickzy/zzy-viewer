@@ -10,8 +10,8 @@
     </div>
     <div class="content_img" v-if="!isFullscreen">
       <div class="closeBtn" @click="handleClose"></div>
-      <div :style="percentStyle" :class="transformStatus ? 'self_img_transition current_img_percent' : 'current_img_percent'">{{`${percent}%`}}</div>
       <div class="self_img" :style="wrapImgStyle" ref="wrapMoveImg">
+        <div :style="percentStyle" :class="transformStatus ? 'self_img_transition current_img_percent' : 'current_img_percent'">{{`${percent}%`}}</div>
         <img 
           ref="canMoveImg"
           @mousedown="mousedown"
@@ -145,8 +145,16 @@ export default {
       }
     },
     percentStyle () {
-      return {
-        display: this.percentIsShow ? 'block' : 'none'
+      if (this.initData && this.initData.wrapWidth) {
+        let width = this.$refs.wrapMoveImg.querySelector('.current_img_percent').clientWidth
+        return {
+          display: this.percentIsShow ? 'block' : 'none',
+          left: `${(this.initData.wrapWidth - width) / 2}px`
+        }
+      } else {
+        return {
+          display: this.percentIsShow ? 'block' : 'none'
+        }
       }
     }
   },
@@ -214,6 +222,8 @@ export default {
           _this.changeHeiht = lastH
           _this.moveTop = top
           _this.moveLeft = left
+          _this.beforeTop = 0
+          _this.beforeLeft = 0
           _this.defailtMinWidth = imgRealWidth * 0.01
           _this.defailtMaxWidth = imgRealWidth * 10
           _this.percent = Math.floor(w * 100)
@@ -231,6 +241,8 @@ export default {
       this.changeHeiht = lastH
       this.moveTop = top
       this.moveLeft = left
+      this.beforeTop = 0
+      this.beforeLeft = 0
       this.transforms = []
       this.rotate = 0
       this.toggleRotateX = false
@@ -330,6 +342,7 @@ export default {
     },
     close () {
       this.isShowSelf = false
+      // this.$destroy()
     },
     handleClose () {
       this.close()
@@ -399,8 +412,8 @@ export default {
           } else {
             this.width = lastW
             this.changeHeiht = lastH
-            this.moveTop = this.beforeTop
-            this.moveLeft = this.beforeLeft
+            this.moveTop = this.beforeTop || this.initData.top
+            this.moveLeft = this.beforeLeft || this.initData.left
             this.percent = Math.floor((this.width / this.initData.imgRealWidth) * 100)
           }
           this.percentChange()
@@ -499,6 +512,7 @@ export default {
     // 组建销毁移除监听事件
     listener.removeListener(document.body, 'mousewheel', this.mouseSheel)
     // listener.removeListener(document.body, 'mousewheel', _this.mouseSheel)
+    // 属性初始化
   },
   watch: {
     transforms (newValue, value) {
@@ -560,7 +574,6 @@ export default {
   position: absolute;
   color: #ffffff;
   top: 40%;
-  left: 34%;
   font-size: 12px;
   background: rgb(0,0,0);
   text-align: center;

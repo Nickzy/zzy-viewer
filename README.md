@@ -25,16 +25,17 @@ isHasSiderBar 是否展示详情默认false (boolan) (<template slot="siderbar">
 bottom 图片距离底部位置默认 10 (number)
 top 图片距离顶部位置默认 30 (number)
 fatherElement 图片父级节点 (element)
-
-示例
+```
+### 示例
+``` js
 import viewer from 'zzy-viewer'
 Vue.use(viewer)
-在 main.js 中安装即可全局引用
-<viewer :fatherElement="farElement" :list="imageData" :isHasSiderBar="false" position="">
+// 在 main.js 中安装即可全局引用
+<viewer fatherElement="element" list="array" isHasSiderBar="boolean" position="">
     <template slot="siderbar">
         <div>
             此为侧边栏详情
         </div>
     </template>
 </viewer>
-```
+````
