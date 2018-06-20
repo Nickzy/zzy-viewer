@@ -67,8 +67,10 @@ export default {
 <style>
 .siderbar_detail_img {
   position: absolute;
-  width: 26%;
-  height: 100%;
+  top: 0;
+  width: 22%;
+  bottom: 0;
+  padding: 2%;
   background-color: #ffffff;
 }
 .closeBtn {

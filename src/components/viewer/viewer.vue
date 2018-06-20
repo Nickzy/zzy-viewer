@@ -11,7 +11,7 @@
     <div class="content_img" v-if="!isFullscreen">
       <div class="closeBtn" @click="handleClose"></div>
       <div class="self_img" :style="wrapImgStyle" ref="wrapMoveImg">
-        <div :style="percentStyle" :class="transformStatus ? 'self_img_transition current_img_percent' : 'current_img_percent'">{{`${percent}%`}}</div>
+        <div :style="percentStyle" :class="transformStatus ? 'self_img_transition current_img_percent' : 'current_img_percent'">{{`${scaleSize}%`}}</div>
         <img 
           ref="canMoveImg"
           @mousedown="mousedown"
@@ -80,9 +80,11 @@ export default {
   },
   data () {
     return {
+      nsNum: 0,
       isShowSelf: false,
       // 图片属性
       width: null,
+      height: 0,
       defailtMinWidth: 20,
       defailtMaxWidth: 800,
       changeHeiht: 0,
@@ -93,7 +95,9 @@ export default {
       startTop: 0,
       startLeft: 0,
       currentIndex: 0,
-      percent: 0,
+      startDistance: 0,
+      scaleSize: 0,
+      initPercent: 0,
       percentIsShow: false,
       initData: null,
       rotate: 0,
@@ -219,6 +223,7 @@ export default {
           let left = (wrapWidth - lastW) / 2
           // 设置图片初始属性
           _this.width = lastW
+          _this.height = lastH
           _this.changeHeiht = lastH
           _this.moveTop = top
           _this.moveLeft = left
@@ -226,7 +231,8 @@ export default {
           _this.beforeLeft = 0
           _this.defailtMinWidth = imgRealWidth * 0.01
           _this.defailtMaxWidth = imgRealWidth * 10
-          _this.percent = Math.floor(w * 100)
+          _this.scaleSize = Math.floor(w * 100)
+          _this.initPercent = w
           // 存储初始属性
           _this.src = src
           let data = {wrapWidth, wrapHeight, imgRealWidth, lastW, imgRealHeight, lastH, rotate: 0, w, top, left}
@@ -248,29 +254,22 @@ export default {
       this.toggleRotateX = false
       this.toggleRotateY = false
       this.isOneByOne = false
+      this.initPercent = this.initData.w
+      this.scaleSize = Math.floor(this.initData.w * 100)
+      this.scaleSizeChange()
     },
-    percentChange () {
+    scaleSizeChange () {
       this.percentIsShow = true
       this.transition()
-      let timer
-      clearTimeout(timer)
-      timer = setTimeout(() => {
-        this.numSetimeout += 1
-        this.percentStatus(this.numSetimeout)
-      }, 250)
-    },
-    percentStatus (num) {
-      let timer
-      clearInterval(timer)
-      timer = setInterval(() => {
-        if (this.percentIsShow) {
-          this.percentIsShow = false
-          clearInterval(timer)
-        }
-      }, num * 250)
+      if (this.scaleSizeChange) {
+        clearTimeout(this.scaleSizeTimer)
+      }
+      this.scaleSizeTimer = setTimeout(() => {
+        this.percentIsShow = false
+      }, 1000)
     },
     getSelfWidth (minWidth, maxWidth, delta, realWidth) {
-      return Math.max(minWidth, Math.min(maxWidth, realWidth + (this.defailtMinWidth * delta)))
+      return Math.max(minWidth, Math.min(maxWidth, (realWidth * (1 + (delta / 100)))))
     },
     // 拖动事件
     mousedown (e) {
@@ -280,35 +279,15 @@ export default {
       this.mouseup(this.$refs.wrapMoveImg, this._mouseMove)
     },
     mouseup (element, handle) {
-      listener.addListener(document, 'mouseup', function () {
+      let _this = this
+      listener.addListener(document, 'mouseup', function (e) {
+        _this.startDistance = 0
         element && listener.removeListener(element, 'mousemove', handle)
       })
     },
     _mouseMove (e) {
-      // let {wrapWidth, wrapHeight} = this.initData
       let x = e.clientX - this.startLeft
       let y = e.clientY - this.startTop
-      // let maxX = wrapWidth - this.width
-      // let maxY = wrapHeight - this.changeHeiht
-      // let resultX = x
-      // if (x > 0) {
-      //   resultX = x
-      // }
-      // if (x < 0) {
-      //   resultX = 0
-      // }
-      // if (y > 0) {
-      //   resultY = y
-      // }
-      // if (y < 0) {
-      //   resultY = 0
-      // }
-      // if (x >= maxX && x > 0) {
-      //   resultX = maxX
-      // }
-      // if (y >= maxY && y > 0) {
-      //   resultY = maxY
-      // }
       this.moveTop = y
       this.moveLeft = x
       this.beforeTop = y
@@ -320,20 +299,43 @@ export default {
     mouseSheel (event) {
       if (!screenfull.isFullscreen && this.isShowSelf) {
         let e = event
+        e.preventDefault()
         let delta = Math.max(-1, Math.min(1, (e.wheelDelta || -e.detail)))
-        let width = this.getSelfWidth(this.defailtMinWidth, this.defailtMaxWidth, delta, this.width)
-        this.width = width
-        this.percent = Math.floor((width / this.initData.imgRealWidth) * 100)
-        if (this.percentIsShow) { return }
-        this.percentChange()
+        let p = delta / 100
+        let ns = this.initPercent
+        ns += p
+        ns = ns < 0.01 ? 0.01 : (ns > 10 ? 10 : ns) //可以缩小到0.01,放大到5倍
+        this.getNsNum(ns)
+        let x = e.pageX - 50 - this.$refs.wrapMoveImg.offsetLeft
+        let y = e.pageY - 10
+        let left = this.moveLeft - (x  - this.moveLeft) * p / this.initPercent
+        let top = this.moveTop - (y - this.moveTop) * p / this.initPercent
+        if (this.nsNum <= 1) {
+          this.width = this.initData.imgRealWidth * ns
+          this.height = this.initData.imgRealWidth * ns
+          this.moveTop = top
+          this.moveLeft = left
+        }
+        this.initPercent = ns
+        this.scaleSize = Math.round(ns * 100)
+        this.scaleSizeChange()
         this.transition()
-        // this.percentIsShow = true
       }
       // return false
     },
+    getNsNum (ns) {
+      if (ns === 0.01) {
+        this.nsNum = this.nsNum + 1
+      } else {
+        this.nsNum = 0
+      }
+    },
     transition () {
       this.transformStatus = true
-      setTimeout(() => {
+      if (this.transitionTimer) {
+        clearTimeout(this.transitionTimer)
+      }
+      this.transitionTimer = setTimeout(() => {
         this.transformStatus = false
       }, 3000)
     },
@@ -347,6 +349,25 @@ export default {
     handleClose () {
       this.close()
     },
+    setinitPercent (p) {
+      let ns = this.initPercent
+      ns += p
+      ns = ns < 0.01 ? 0.01 : (ns > 10 ? 10 : ns) //可以缩小到0.01,放大到5倍
+      this.getNsNum(ns)
+      let x = 50 + this.$refs.wrapMoveImg.offsetLeft + this.width
+      let y = 10 + this.height + this.$refs.wrapMoveImg.offsetTop
+      let left = this.moveLeft - (this.width / 2) * p / this.initPercent
+      let top = this.moveTop - (this.height / 2) * p / this.initPercent
+      if (this.nsNum <= 1) {
+        this.width = this.initData.imgRealWidth * ns
+        this.height = this.initData.imgRealWidth * ns
+        this.moveTop = top
+        this.moveLeft = left
+      }
+      this.initPercent = ns
+      this.scaleSize = Math.round(ns * 100)
+      this.scaleSizeChange()
+    },
     handleClick (e) {
       let btnText = e.target.dataset.action
       switch (btnText) {
@@ -354,14 +375,16 @@ export default {
           this.reset()
           break
         case 'zoom-in':
-          this.width += this.defailtMinWidth
-          this.percent = Math.floor((this.width / this.initData.imgRealWidth) * 100)
-          this.percentChange()
+          if (this.initPercent < 0.01) {
+            return
+          }
+          this.setinitPercent(0.01)
           break
         case 'zoom-out':
-          this.width -= this.defailtMinWidth
-          this.percent = Math.floor((this.width / this.initData.imgRealWidth) * 100)
-          this.percentChange()
+          if (this.initPercent > 10) {
+            return
+          }
+          this.setinitPercent(-0.01)
           break
         case 'rotate-left':
           this.rotate--
@@ -402,21 +425,23 @@ export default {
           this.isOneByOne = !this.isOneByOne
           let {imgRealWidth, imgRealHeight, wrapWidth, wrapHeight, lastW, lastH} = this.initData
           if (this.isOneByOne) {
-            if (this.percent !== 100) {
+            if (this.scaleSize !== 100) {
               this.width = imgRealWidth
               this.changeHeiht = imgRealHeight
               this.moveTop = (wrapHeight - imgRealHeight) / 2
               this.moveLeft = (wrapWidth - imgRealWidth) / 2
-              this.percent = 100
+              this.scaleSize = 100
+              this.initPercent = 1
             }
           } else {
             this.width = lastW
             this.changeHeiht = lastH
             this.moveTop = this.beforeTop || this.initData.top
             this.moveLeft = this.beforeLeft || this.initData.left
-            this.percent = Math.floor((this.width / this.initData.imgRealWidth) * 100)
+            this.scaleSize = Math.floor((this.width / this.initData.imgRealWidth) * 100)
+            this.initPercent = this.width / this.initData.imgRealWidth
           }
-          this.percentChange()
+          this.scaleSizeChange()
           break
       }
     },
@@ -438,7 +463,7 @@ export default {
     show (event) {
       let e = event
       let src = e.target.src
-      if (!screenfull.isFullscreen) {
+      if (!screenfull.isFullscreen && src) {
         this.list.forEach((item, index) => {
           if (src.indexOf(item.uri) !== -1) {
             this.isShowSelf = true
@@ -455,7 +480,6 @@ export default {
       this.width = null
       this.changeHeiht = 0
       this.isOneByOne = false
-      // this.src = item
       let Img = new Image()
       Img.src = item.uri
       this.imgIsComplet(this.$refs.canMoveImg, (img) => {
@@ -553,7 +577,7 @@ export default {
   user-select: none;
 }
 .self_img_transition {
-  transition: all 0.3
+  transition: all 0.3s ease;
 }
 .content_img {
   position: relative;
@@ -581,6 +605,7 @@ export default {
   border-radius: 8px;
   padding: 0 10px;
   z-index: 100;
+  user-select: none;
 }
 .self_img {
   position: absolute;

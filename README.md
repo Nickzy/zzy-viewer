@@ -31,6 +31,8 @@ fatherElement 图片父级节点 (element)
 import viewer from 'zzy-viewer'
 Vue.use(viewer)
 // 在 main.js 中安装即可全局引用
+
+// 引用示例
 <viewer fatherElement="element" list="array" isHasSiderBar="boolean" position="">
     <template slot="siderbar">
         <div>
