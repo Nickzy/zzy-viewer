@@ -10,6 +10,18 @@ export default {
     contentWidth: {
       default: ''
     },
+    top: {
+      default: 0
+    },
+    height: {
+      default: 0
+    },
+    left: {
+      default: 30
+    },
+    right: {
+      default: 30
+    },
     position: {
       default: ''
     }
@@ -27,11 +39,15 @@ export default {
     getStyle () {
       if (this.position === 'left') {
         return {
-          left: 0
+          top: `${this.top}px`,
+          height: `${this.height - 40}px`,
+          left: `${this.left}px`
         }
       }
       return {
-        right: 0
+        top: `${this.top}px`,
+        height: `${this.height - 40}px`,
+        right: `${this.right}px`
       }
     }
   },
@@ -67,23 +83,11 @@ export default {
 <style>
 .siderbar_detail_img {
   position: absolute;
+  overflow: auto;
   top: 0;
   width: 22%;
-  bottom: 0;
-  padding: 2%;
+  padding: 20px 2%;
+  border-radius: 6px;
   background-color: #ffffff;
-}
-.closeBtn {
-  background: rgb(126, 122, 122);
-  background-image: url('./images/icons.png');
-  background-repeat: no-repeat;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background-position: -260px 0;
-  position: absolute;
-  top: -10px;
-  right: -10px;
-  border: 2px solid #ffffff;
 }
 </style>

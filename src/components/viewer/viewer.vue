@@ -10,17 +10,23 @@
     </div>
     <div class="content_img" v-if="!isFullscreen">
       <div class="closeBtn" @click="handleClose"></div>
-      <div class="self_img" :style="wrapImgStyle" ref="wrapMoveImg">
-        <div :style="percentStyle" :class="transformStatus ? 'self_img_transition current_img_percent' : 'current_img_percent'">{{`${scaleSize}%`}}</div>
+      <div class="self_img" ref="wrapMoveImg">
+        <div :style="percentStyle" class="current_img_percent" :class="transformStatus ? 'self_img_transition ' : ''">{{`${scaleSize}%`}}</div>
         <img 
           ref="canMoveImg"
           @mousedown="mousedown"
+          :class="transformStatus ? 'self_img_transition ' : ''"
           :draggable="false"
           :style="style"
           :src="src"
           alt=""
         />
-        <a download @click="downloadIamge('down', 'aaa')" href="javascript:;">点击下载</a>
+        <!-- <a download @click="downloadIamge('down', 'aaa')" href="javascript:;">点击下载</a> -->
+        <siderbar-detail v-if="initData && isHasSiderBar" :top="top" :height="siderbarH" :contentWidth="contentWidth" :position="position" @close="close">
+          <template slot="get_siderbar">
+            <slot name="siderbar"></slot>
+          </template>
+        </siderbar-detail>
         <div class="footer_operation">
           <ul class="button_operation" @click="handleClick">
             <li data-action="zoom-in"></li>
@@ -38,11 +44,6 @@
           <footer-img-list @getImgData="getImgData" :listArr="list" :isFull="false" :changeIndex="currentIndex"></footer-img-list>
         </div>
       </div>
-      <siderbar-detail v-if="isHasSiderBar" :contentWidth="contentWidth" :position="position" @close="close">
-        <template slot="get_siderbar">
-          <slot name="siderbar"></slot>
-        </template>
-      </siderbar-detail>
     </div>
   </div>
 </template>
@@ -84,6 +85,7 @@ export default {
       isShowSelf: false,
       // 图片属性
       width: null,
+      siderbarH: 0,
       height: 0,
       defailtMinWidth: 20,
       defailtMaxWidth: 800,
@@ -92,14 +94,15 @@ export default {
       moveLeft: 0,
       beforeTop: 0,
       beforeLeft: 0,
+      initPercent: 0,
+      percentIsShow: false,
+      initData: null,
+      listChangeSrc: '',
       startTop: 0,
       startLeft: 0,
       currentIndex: 0,
       startDistance: 0,
       scaleSize: 0,
-      initPercent: 0,
-      percentIsShow: false,
-      initData: null,
       rotate: 0,
       toggleRotateX: false,
       toggleRotateY: false,
@@ -119,7 +122,8 @@ export default {
         return {
           width: `${this.width}px`,
           top: `${this.moveTop}px`,
-          left: `${this.moveLeft}px`
+          left: `${this.moveLeft}px`,
+          'z-index': 1
         }
       } else {
         return {
@@ -133,24 +137,10 @@ export default {
       let element = document.querySelector('.content_img')
       return element && element.clientWidth
     },
-    wrapImgStyle () {
-      if (!this.isHasSiderBar) {
-        return {
-          width: '100%'
-        }
-      }
-      if (this.position === 'left') {
-        return {
-          right: 0
-        }
-      }
-      return {
-        left: 0
-      }
-    },
     percentStyle () {
       if (this.initData && this.initData.wrapWidth) {
-        let width = this.$refs.wrapMoveImg.querySelector('.current_img_percent').clientWidth
+        let element = this.$refs.wrapMoveImg ? this.$refs.wrapMoveImg.querySelector('.current_img_percent') : null
+        let width = element ? element.clientWidth : 0
         return {
           display: this.percentIsShow ? 'block' : 'none',
           left: `${(this.initData.wrapWidth - width) / 2}px`
@@ -167,18 +157,14 @@ export default {
     this.$nextTick(function () {
       // 拖动图片初始属性
       document.body.addEventListener('mousewheel', _this.mouseSheel)
-      window.addEventListener('resize', function () {
-        _this.isFullscreen = screenfull.isFullscreen
-        if (!screenfull.isFullscreen && _this.$refs.wrapMoveImg) {
-          _this.initData.wrapWidth = _this.$refs.wrapMoveImg.clientWidth
-          _this.initData.wrapHeight = _this.$refs.wrapMoveImg.clientHeight
-          _this.init(_this, _this.src)
-        }
-      })
+      window.addEventListener('resize', _this.winResize)
+      _this.siderbarH = window.innerHeight - 137
     })
   },
   methods: {
     init (_this, src, cb) {
+      document.body.addEventListener('mousewheel', _this.mouseSheel)
+      window.addEventListener('resize', _this.winResize)
       return new Promise((resolve, reject) => {
         let imgObj = new Image()
         imgObj.src = src
@@ -221,6 +207,14 @@ export default {
           }
           let top = 30
           let left = (wrapWidth - lastW) / 2
+          // 根据siderbar 设置图片位置
+          // if (_this.isHasSiderBar) {
+          //   if (_this.position === 'left') {
+          //     left = 30 + wrapWidth * 0.26 + 40
+          //   } else {
+          //     left = wrapWidth - 30 - wrapWidth * 0.26 - 40 - lastW
+          //   }
+          // }
           // 设置图片初始属性
           _this.width = lastW
           _this.height = lastH
@@ -235,11 +229,25 @@ export default {
           _this.initPercent = w
           // 存储初始属性
           _this.src = src
+          _this.transformStatus = true
+          setTimeout(() => {
+            _this.transformStatus = false
+          }, 600)
           let data = {wrapWidth, wrapHeight, imgRealWidth, lastW, imgRealHeight, lastH, rotate: 0, w, top, left}
           _this.initData = data
           resolve()
         })
       })
+    },
+    winResize () {
+      let _this = this
+      _this.isFullscreen = screenfull.isFullscreen
+      if (!screenfull.isFullscreen && _this.$refs.wrapMoveImg) {
+        _this.siderbarH = window.innerHeight - 137
+        _this.initData.wrapWidth = _this.$refs.wrapMoveImg.clientWidth
+        _this.initData.wrapHeight = _this.$refs.wrapMoveImg.clientHeight
+        _this.init(_this, _this.src)
+      }
     },
     reset () {
       let {lastW, lastH, top, left} = this.initData
@@ -252,10 +260,11 @@ export default {
       this.transforms = []
       this.rotate = 0
       this.toggleRotateX = false
+      this.listChangeSrc = '',
       this.toggleRotateY = false
       this.isOneByOne = false
       this.initPercent = this.initData.w
-      this.scaleSize = Math.floor(this.initData.w * 100)
+      this.scaleSize = Math.round(this.initData.w * 100)
       this.scaleSizeChange()
     },
     scaleSizeChange () {
@@ -273,6 +282,7 @@ export default {
     },
     // 拖动事件
     mousedown (e) {
+      this.transformStatus = false
       this.startLeft = e.clientX - this.$refs.canMoveImg.offsetLeft
       this.startTop = e.clientY - this.$refs.canMoveImg.offsetTop
       this.mousemove(this.$refs.wrapMoveImg, this._mouseMove)
@@ -301,7 +311,11 @@ export default {
         let e = event
         e.preventDefault()
         let delta = Math.max(-1, Math.min(1, (e.wheelDelta || -e.detail)))
-        let p = delta / 100
+        let chP = Math.round(this.initPercent * 10) / 100
+        if (chP < 0.01 && this.initPercent  >= 0.01) {
+          chP = Math.round(this.initPercent * 100) / 1000
+        }
+        let p = chP * delta
         let ns = this.initPercent
         ns += p
         ns = ns < 0.01 ? 0.01 : (ns > 10 ? 10 : ns) //可以缩小到0.01,放大到5倍
@@ -324,7 +338,7 @@ export default {
       // return false
     },
     getNsNum (ns) {
-      if (ns === 0.01) {
+      if (ns === 0.01 || ns >= 10) {
         this.nsNum = this.nsNum + 1
       } else {
         this.nsNum = 0
@@ -348,6 +362,10 @@ export default {
     },
     handleClose () {
       this.close()
+      this.clearProp()
+      // 组建销毁移除监听事件
+      listener.removeListener(document.body, 'mousewheel', this.mouseSheel)
+      listener.removeListener(window, 'resize', this.winResize)
     },
     setinitPercent (p) {
       let ns = this.initPercent
@@ -370,6 +388,7 @@ export default {
     },
     handleClick (e) {
       let btnText = e.target.dataset.action
+      this.transition()
       switch (btnText) {
         case 'reset':
           this.reset()
@@ -464,9 +483,11 @@ export default {
       let e = event
       let src = e.target.src
       if (!screenfull.isFullscreen && src) {
+        this.listChangeSrc = src
         this.list.forEach((item, index) => {
           if (src.indexOf(item.uri) !== -1) {
             this.isShowSelf = true
+            this.listChangeSrc = ''
             this.$nextTick(() => {
               this.init(this, this.list[index].uri)
               this.currentIndex = index
@@ -528,14 +549,50 @@ export default {
       a.download = name || '下载图片名称'
       a.href = url
       a.dispatchEvent(event)
+    },
+    clearProp () {
+      this.nsNum = 0
+      this.isShowSelf = false
+      // 图片属性
+      this.width = null
+      this.height = 0
+      this.defailtMinWidth = 20
+      this.defailtMaxWidth = 800
+      this.changeHeiht = 0
+      this.moveTop = 0
+      this.moveLeft = 0
+      this.beforeTop = 0
+      this.beforeLeft = 0
+      this.initPercent = 0
+      this.percentIsShow = false
+      this.initData = null
+      this.listChangeSrc = ''
+      this.startTop = 0
+      this.startLeft = 0
+      this.currentIndex = 0
+      this.startDistance = 0
+      this.scaleSize = 0
+      this.rotate = 0
+      this.toggleRotateX = false
+      this.toggleRotateY = false
+      this.transforms = []
+      this.transformStatus = false
+      this.initTransition = false
+      this.isFullscreen = false
+      this.isOneByOne = false
+      this.playOfImg = null
+      this.src = ''
+      this.numSetimeout = 0
     }
   },
   beforeDestroy () {
   },
   destroyed () {
+    console.log('beforeDestroy')
+    this.clearProp()
     // 组建销毁移除监听事件
     listener.removeListener(document.body, 'mousewheel', this.mouseSheel)
-    // listener.removeListener(document.body, 'mousewheel', _this.mouseSheel)
+    listener.removeListener(document.body, 'resize', this.winResize)
     // 属性初始化
   },
   watch: {
@@ -559,6 +616,19 @@ export default {
         this.currentIndex = newValue
       }
     },
+    list (newValue, value) {
+      if (newValue && newValue.length && !this.isShowSelf && !screenfull.isFullscreen && this.listChangeSrc) {
+        newValue.forEach((item, index) => {
+          if (this.listChangeSrc.indexOf(item.uri) !== -1) {
+            this.isShowSelf = true
+            this.$nextTick(() => {
+              this.init(this, newValue[index].uri)
+              this.currentIndex = index
+            })
+          }
+        })
+      }
+    },
     fatherElement (newValue, value) {
       newValue && newValue.addEventListener('click', this.show)
     }
@@ -573,7 +643,7 @@ export default {
   right: 0;
   bottom: 0;
   background-color: rgba(0,0,0,.5);
-  z-index: 10000000;
+  z-index: 10000;
   user-select: none;
 }
 .self_img_transition {
@@ -585,7 +655,7 @@ export default {
   display: flex;
   width: 100%;
   height: 100%;
-  background: rgba(0,0,0,.3);
+  /* background: rgba(0,0,0,.3); */
 }
 .self_img img {
   display: block;
@@ -609,7 +679,7 @@ export default {
 }
 .self_img {
   position: absolute;
-  width: 72%;
+  width: 100%;
   height: 100%;
   background: rgba(0,0,0,.2);
   overflow: hidden;
@@ -619,6 +689,7 @@ export default {
   position: absolute;
   width: 100%;
   bottom: 0;
+  z-index: 10;
 }
 .button_operation {
   width: 270px;
